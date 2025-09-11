@@ -152,13 +152,17 @@ function setupPreparationForm(userType) {
                 <p>${category.description}</p>
                 
                 <div class="prep-rating">
-                    <label>Your Rating (1=Low, 5=High):</label>
+                    <label>Your Rating:</label>
+                    <div class="rating-scale-labels">
+                        <span>Very Dissatisfied</span>
+                        <span>Very Satisfied</span>
+                    </div>
                     <div class="prep-rating-buttons" data-category="${index}">
-                        <button type="button" class="prep-rating-btn" data-rating="1" onclick="selectPrepRating(${index}, 1)">1</button>
-                        <button type="button" class="prep-rating-btn" data-rating="2" onclick="selectPrepRating(${index}, 2)">2</button>
-                        <button type="button" class="prep-rating-btn" data-rating="3" onclick="selectPrepRating(${index}, 3)">3</button>
-                        <button type="button" class="prep-rating-btn" data-rating="4" onclick="selectPrepRating(${index}, 4)">4</button>
-                        <button type="button" class="prep-rating-btn" data-rating="5" onclick="selectPrepRating(${index}, 5)">5</button>
+                        <button type="button" class="prep-rating-btn" data-rating="1" onclick="selectPrepRating(${index}, 1)">😞</button>
+                        <button type="button" class="prep-rating-btn" data-rating="2" onclick="selectPrepRating(${index}, 2)">😕</button>
+                        <button type="button" class="prep-rating-btn" data-rating="3" onclick="selectPrepRating(${index}, 3)">😐</button>
+                        <button type="button" class="prep-rating-btn" data-rating="4" onclick="selectPrepRating(${index}, 4)">😊</button>
+                        <button type="button" class="prep-rating-btn" data-rating="5" onclick="selectPrepRating(${index}, 5)">😍</button>
                     </div>
                 </div>
                 
@@ -328,7 +332,9 @@ function revealEmployee() {
     const rating = employeeData.ratings[category.name];
     const comment = employeeData.comments[category.name];
     
-    document.getElementById('employeeRatingValue').textContent = rating || 'N/A';
+    // Convert rating to emoji
+    const ratingEmojis = ['', '😞', '😕', '😐', '😊', '😍'];
+    document.getElementById('employeeRatingValue').textContent = rating ? ratingEmojis[rating] : '❓';
     document.getElementById('employeeCommentDisplay').textContent = comment || 'No comment provided';
     
     document.getElementById('startRevealBtn').style.display = 'none';
@@ -344,7 +350,9 @@ function revealManager() {
     const managerComment = managerData.comments[category.name];
     const employeeRating = employeeData.ratings[category.name];
     
-    document.getElementById('managerRatingValue').textContent = managerRating || 'N/A';
+    // Convert rating to emoji
+    const ratingEmojis = ['', '😞', '😕', '😐', '😊', '😍'];
+    document.getElementById('managerRatingValue').textContent = managerRating ? ratingEmojis[managerRating] : '❓';
     document.getElementById('managerCommentDisplay').textContent = managerComment || 'No comment provided';
     
     // Show comparison
@@ -398,18 +406,23 @@ function showResults() {
             <tbody>
     `;
     
+    const ratingEmojis = ['', '😞', '😕', '😐', '😊', '😍'];
+    
     appState.categories.forEach(category => {
-        const employeeRating = sessionData.employee.ratings[category.name] || 'N/A';
-        const managerRating = sessionData.manager.ratings[category.name] || 'N/A';
-        const difference = (employeeRating !== 'N/A' && managerRating !== 'N/A') ? 
+        const employeeRating = sessionData.employee.ratings[category.name];
+        const managerRating = sessionData.manager.ratings[category.name];
+        const difference = (employeeRating && managerRating) ? 
             Math.abs(employeeRating - managerRating) : 'N/A';
+        
+        const employeeDisplay = employeeRating ? `${ratingEmojis[employeeRating]} ${employeeRating}` : 'N/A';
+        const managerDisplay = managerRating ? `${ratingEmojis[managerRating]} ${managerRating}` : 'N/A';
         
         tableHTML += `
             <tr>
                 <td><strong>${category.name}</strong></td>
-                <td>${employeeRating}</td>
-                <td>${managerRating}</td>
-                <td>${difference === 0 ? 'Perfect Match!' : (difference === 'N/A' ? 'N/A' : `±${difference}`)}</td>
+                <td>${employeeDisplay}</td>
+                <td>${managerDisplay}</td>
+                <td>${difference === 0 ? '🎯 Perfect Match!' : (difference === 'N/A' ? 'N/A' : `±${difference}`)}</td>
             </tr>
         `;
     });
