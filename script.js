@@ -72,10 +72,16 @@ async function savePreparationToSupabase(prepKey, userType, name, partner, ratin
 async function getPreparationFromSupabase(prepKey) {
     if (!supabase) throw new Error('Supabase not initialized');
     
+    // Split the key to get individual names
+    const names = prepKey.split('_');
+    const name1 = names[0];
+    const name2 = names[1];
+    
+    // Look for both possible combinations
     const { data, error } = await supabase
         .from('preparations')
         .select('*')
-        .or(`prep_key.like.%${prepKey}%`);
+        .or(`prep_key.like.%${name1}_${name2}%,prep_key.like.%${name2}_${name1}%`);
     
     if (error) throw error;
     
@@ -291,19 +297,31 @@ async function startSession() {
     
     try {
         // Try to load from Supabase first
-        const prepKey1 = `${employeeName}_${managerName}`;
-        const prepKey2 = `${managerName}_${employeeName}`;
+        // Look for preparations involving both names
+        const { data, error } = await supabase
+            .from('preparations')
+            .select('*')
+            .or(`name.eq.${employeeName},name.eq.${managerName}`);
         
-        let prepData;
-        try {
-            const response1 = await getPreparationFromSupabase(prepKey1);
-            prepData = response1.data;
-        } catch (error) {
-            const response2 = await getPreparationFromSupabase(prepKey2);
-            prepData = response2.data;
-        }
+        if (error) throw error;
         
-        if (!prepData || !prepData.employee || !prepData.manager) {
+        // Group by user type and verify we have both
+        const prepData = {};
+        data.forEach(row => {
+            // Check if this person's partner matches the other person in the session
+            if ((row.name === employeeName && row.partner === managerName) ||
+                (row.name === managerName && row.partner === employeeName)) {
+                prepData[row.user_type] = {
+                    name: row.name,
+                    partner: row.partner,
+                    ratings: row.ratings,
+                    comments: row.comments,
+                    date: row.updated_at
+                };
+            }
+        });
+        
+        if (!prepData.employee || !prepData.manager) {
             throw new Error('Incomplete preparation data');
         }
         
