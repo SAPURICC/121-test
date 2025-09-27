@@ -33,9 +33,8 @@ let appState = {
 };
 
 // Supabase Configuration
-// You'll need to replace these with your actual Supabase project details
-const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // Replace with your Supabase URL
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Replace with your Supabase anon key
+const SUPABASE_URL = 'https://cheqvocbcbttfsudsyod.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoZXF2b2NiY2J0dGZzdWRzeW9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg5NzE5NjEsImV4cCI6MjA3NDU0Nzk2MX0.aIdYaj6NottVVVvIgf0qs-w7w91i9aEmBEproB9Ty5U';
 
 // Initialize Supabase client
 let supabase;
