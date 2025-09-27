@@ -32,60 +32,97 @@ let appState = {
     ]
 };
 
-// API Configuration
-const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:3000/api' 
-    : '/api'; // Use relative path for production
+// Supabase Configuration
+// You'll need to replace these with your actual Supabase project details
+const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // Replace with your Supabase URL
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Replace with your Supabase anon key
 
-// API functions
-async function apiCall(endpoint, options = {}) {
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
-            ...options
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('API call failed:', error);
-        throw error;
+// Initialize Supabase client
+let supabase;
+
+// Initialize Supabase when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase initialized successfully');
+    } else {
+        console.warn('Supabase not configured. Please update SUPABASE_URL and SUPABASE_ANON_KEY');
     }
+});
+
+// Supabase API functions
+async function savePreparationToSupabase(prepKey, userType, name, partner, ratings, comments) {
+    if (!supabase) throw new Error('Supabase not initialized');
+    
+    const { data, error } = await supabase
+        .from('preparations')
+        .upsert({
+            prep_key: `${userType}_${prepKey}`,
+            user_type: userType,
+            name: name,
+            partner: partner,
+            ratings: ratings,
+            comments: comments,
+            updated_at: new Date().toISOString()
+        });
+    
+    if (error) throw error;
+    return { success: true, data };
 }
 
-async function savePreparationToAPI(prepKey, userType, name, partner, ratings, comments) {
-    return await apiCall('/preparations', {
-        method: 'POST',
-        body: JSON.stringify({
-            prepKey: `${userType}_${prepKey}`,
-            userType,
-            name,
-            partner,
-            ratings,
-            comments
-        })
+async function getPreparationFromSupabase(prepKey) {
+    if (!supabase) throw new Error('Supabase not initialized');
+    
+    const { data, error } = await supabase
+        .from('preparations')
+        .select('*')
+        .or(`prep_key.like.%${prepKey}%`);
+    
+    if (error) throw error;
+    
+    // Group by user type
+    const prepData = {};
+    data.forEach(row => {
+        prepData[row.user_type] = {
+            name: row.name,
+            partner: row.partner,
+            ratings: row.ratings,
+            comments: row.comments,
+            date: row.updated_at
+        };
     });
+    
+    return { success: true, data: prepData };
 }
 
-async function getPreparationFromAPI(prepKey) {
-    return await apiCall(`/preparations/${prepKey}`);
+async function saveSessionToSupabase(sessionData) {
+    if (!supabase) throw new Error('Supabase not initialized');
+    
+    const { data, error } = await supabase
+        .from('sessions')
+        .insert({
+            manager_name: sessionData.managerName,
+            employee_name: sessionData.employeeName,
+            session_date: sessionData.sessionDate,
+            employee_data: sessionData.employeeData,
+            manager_data: sessionData.managerData,
+            categories: sessionData.categories
+        });
+    
+    if (error) throw error;
+    return { success: true, data };
 }
 
-async function saveSessionToAPI(sessionData) {
-    return await apiCall('/sessions', {
-        method: 'POST',
-        body: JSON.stringify(sessionData)
-    });
-}
-
-async function getAllSessionsFromAPI() {
-    return await apiCall('/sessions');
+async function getAllSessionsFromSupabase() {
+    if (!supabase) throw new Error('Supabase not initialized');
+    
+    const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .order('session_date', { ascending: false });
+    
+    if (error) throw error;
+    return { success: true, data };
 }
 
 // Fallback to localStorage for offline functionality
@@ -100,10 +137,10 @@ function getFromLocalStorage(key) {
 
 async function getAllSessions() {
     try {
-        const response = await getAllSessionsFromAPI();
+        const response = await getAllSessionsFromSupabase();
         return response.data || [];
     } catch (error) {
-        console.warn('API unavailable, using local storage:', error);
+        console.warn('Supabase unavailable, using local storage:', error);
         return getFromLocalStorage('catchupSessions') || [];
     }
 }
@@ -211,13 +248,13 @@ async function savePreparation() {
     });
     
     try {
-        // Try to save to API first
+        // Try to save to Supabase first
         const preparationKey = `${name}_${partner}`;
-        await savePreparationToAPI(preparationKey, userType, name, partner, ratings, comments);
+        await savePreparationToSupabase(preparationKey, userType, name, partner, ratings, comments);
         
         alert(`${userType.charAt(0).toUpperCase() + userType.slice(1)} preparation saved successfully!`);
     } catch (error) {
-        console.warn('API save failed, using local storage:', error);
+        console.warn('Supabase save failed, using local storage:', error);
         
         // Fallback to localStorage
         const preparationKey = `${name}_${partner}`;
@@ -254,16 +291,16 @@ async function startSession() {
     }
     
     try {
-        // Try to load from API first
+        // Try to load from Supabase first
         const prepKey1 = `${employeeName}_${managerName}`;
         const prepKey2 = `${managerName}_${employeeName}`;
         
         let prepData;
         try {
-            const response1 = await getPreparationFromAPI(prepKey1);
+            const response1 = await getPreparationFromSupabase(prepKey1);
             prepData = response1.data;
         } catch (error) {
-            const response2 = await getPreparationFromAPI(prepKey2);
+            const response2 = await getPreparationFromSupabase(prepKey2);
             prepData = response2.data;
         }
         
@@ -280,7 +317,7 @@ async function startSession() {
         };
         
     } catch (error) {
-        console.warn('API load failed, trying local storage:', error);
+        console.warn('Supabase load failed, trying local storage:', error);
         
         // Fallback to localStorage
         const prepKey1 = `${employeeName}_${managerName}`;
@@ -610,11 +647,11 @@ async function saveSession() {
     };
     
     try {
-        // Try to save to API first
-        await saveSessionToAPI(sessionToSave);
+        // Try to save to Supabase first
+        await saveSessionToSupabase(sessionToSave);
         alert('Session saved successfully!');
     } catch (error) {
-        console.warn('API save failed, using local storage:', error);
+        console.warn('Supabase save failed, using local storage:', error);
         
         // Fallback to localStorage
         const sessions = await getAllSessions();
