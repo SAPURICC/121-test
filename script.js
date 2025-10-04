@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Supabase API functions
-async function savePreparationToSupabase(prepKey, userType, name, partner, ratings, comments) {
+async function savePreparationToSupabase(prepKey, userType, name, partner, ratings, comments, month) {
     if (!supabase) throw new Error('Supabase not initialized');
     
     const { data, error } = await supabase
@@ -60,6 +60,7 @@ async function savePreparationToSupabase(prepKey, userType, name, partner, ratin
             user_type: userType,
             name: name,
             partner: partner,
+            month: month,
             ratings: ratings,
             comments: comments,
             updated_at: new Date().toISOString()
@@ -231,10 +232,11 @@ function selectPrepRating(categoryIndex, rating) {
 async function savePreparation() {
     const name = document.getElementById('prepName').value.trim();
     const partner = document.getElementById('prepPartner').value.trim();
+    const month = document.getElementById('prepMonth').value;
     const userType = document.getElementById('prepTitle').textContent.includes('Employee') ? 'employee' : 'manager';
     
-    if (!name || !partner) {
-        alert('Please enter both names.');
+    if (!name || !partner || !month) {
+        alert('Please enter all required fields including month/year.');
         return;
     }
     
@@ -254,8 +256,8 @@ async function savePreparation() {
     
     try {
         // Try to save to Supabase first
-        const preparationKey = `${name}_${partner}`;
-        await savePreparationToSupabase(preparationKey, userType, name, partner, ratings, comments);
+        const preparationKey = `${name}_${partner}_${month}`;
+        await savePreparationToSupabase(preparationKey, userType, name, partner, ratings, comments, month);
         
         alert(`${userType.charAt(0).toUpperCase() + userType.slice(1)} preparation saved successfully!`);
     } catch (error) {
@@ -289,18 +291,20 @@ function loadPreparationData(userType) {
 async function startSession() {
     const managerName = document.getElementById('sessionManager').value.trim();
     const employeeName = document.getElementById('sessionEmployee').value.trim();
+    const sessionMonth = document.getElementById('sessionMonth').value;
     
-    if (!managerName || !employeeName) {
-        alert('Please enter both manager and employee names.');
+    if (!managerName || !employeeName || !sessionMonth) {
+        alert('Please enter all required fields including session month/year.');
         return;
     }
     
     try {
         // Try to load from Supabase first
-        // Look for preparations involving both names
+        // Look for preparations for the specific month
         const { data, error } = await supabase
             .from('preparations')
             .select('*')
+            .eq('month', sessionMonth)
             .or(`name.eq.${employeeName},name.eq.${managerName}`);
         
         if (error) throw error;
@@ -314,12 +318,34 @@ async function startSession() {
                 prepData[row.user_type] = {
                     name: row.name,
                     partner: row.partner,
+                    month: row.month,
                     ratings: row.ratings,
                     comments: row.comments,
                     date: row.updated_at
                 };
             }
         });
+        
+        // Also get previous month's data for comparison
+        const previousMonth = getPreviousMonth(sessionMonth);
+        const { data: prevData } = await supabase
+            .from('preparations')
+            .select('*')
+            .eq('month', previousMonth)
+            .or(`name.eq.${employeeName},name.eq.${managerName}`);
+        
+        const prevPrepData = {};
+        if (prevData) {
+            prevData.forEach(row => {
+                if ((row.name === employeeName && row.partner === managerName) ||
+                    (row.name === managerName && row.partner === employeeName)) {
+                    prevPrepData[row.user_type] = {
+                        ratings: row.ratings,
+                        month: row.month
+                    };
+                }
+            });
+        }
         
         if (!prepData.employee || !prepData.manager) {
             throw new Error('Incomplete preparation data');
@@ -328,8 +354,10 @@ async function startSession() {
         appState.sessionData = {
             managerName: managerName,
             employeeName: employeeName,
+            sessionMonth: sessionMonth,
             employee: prepData.employee,
             manager: prepData.manager,
+            previousMonth: prevPrepData,
             sessionDate: new Date().toISOString()
         };
         
@@ -406,10 +434,19 @@ function revealManager() {
     
     // Convert rating to emoji
     const ratingEmojis = ['', '😞', '😕', '😐', '😊', '😍'];
+    
+    // Hide single employee reveal and show two-column layout
+    document.getElementById('employeeReveal').style.display = 'none';
+    document.getElementById('twoColumnReveal').style.display = 'block';
+    
+    // Populate both columns
+    document.getElementById('employeeRatingValue2').textContent = employeeRating ? ratingEmojis[employeeRating] : '❓';
+    document.getElementById('employeeCommentDisplay2').textContent = employeeData.comments[category.name] || 'No comment provided';
+    
     document.getElementById('managerRatingValue').textContent = managerRating ? ratingEmojis[managerRating] : '❓';
     document.getElementById('managerCommentDisplay').textContent = managerComment || 'No comment provided';
     
-    // Show comparison
+    // Show current month comparison
     const difference = Math.abs((managerRating || 0) - (employeeRating || 0));
     const diffElement = document.getElementById('ratingDifference');
     
@@ -424,7 +461,64 @@ function revealManager() {
         diffElement.className = 'rating-difference large';
     }
     
-    document.getElementById('managerReveal').style.display = 'block';
+    // Show previous month comparison if available
+    showPreviousMonthComparison(category);
+}
+
+function showPreviousMonthComparison(category) {
+    const prevData = appState.sessionData.previousMonth;
+    const currentEmployee = appState.sessionData.employee.ratings[category.name];
+    const currentManager = appState.sessionData.manager.ratings[category.name];
+    
+    const comparisonElement = document.getElementById('previousMonthComparison');
+    
+    if (!prevData.employee || !prevData.manager) {
+        comparisonElement.innerHTML = '<h6>📊 Previous Month Comparison</h6><p>No previous month data available for comparison.</p>';
+        return;
+    }
+    
+    const prevEmployee = prevData.employee.ratings[category.name];
+    const prevManager = prevData.manager.ratings[category.name];
+    
+    if (!prevEmployee || !prevManager) {
+        comparisonElement.innerHTML = '<h6>📊 Previous Month Comparison</h6><p>Incomplete previous month data for this category.</p>';
+        return;
+    }
+    
+    const employeeTrend = getTrendIndicator(prevEmployee, currentEmployee);
+    const managerTrend = getTrendIndicator(prevManager, currentManager);
+    
+    comparisonElement.innerHTML = `
+        <h6>📊 Previous Month Comparison</h6>
+        <div class="trend-indicator employee-trend ${employeeTrend.class}">
+            ${employeeTrend.icon} Employee: ${prevEmployee} → ${currentEmployee} (${employeeTrend.text})
+        </div>
+        <div class="trend-indicator manager-trend ${managerTrend.class}">
+            ${managerTrend.icon} Manager: ${prevManager} → ${currentManager} (${managerTrend.text})
+        </div>
+    `;
+}
+
+function getTrendIndicator(prev, current) {
+    const diff = current - prev;
+    if (diff > 0) {
+        return { icon: '📈', text: `+${diff}`, class: 'trend-up' };
+    } else if (diff < 0) {
+        return { icon: '📉', text: `${diff}`, class: 'trend-down' };
+    } else {
+        return { icon: '➡️', text: 'No change', class: 'trend-same' };
+    }
+}
+
+function getPreviousMonth(monthStr) {
+    const [year, month] = monthStr.split('-').map(Number);
+    const date = new Date(year, month - 1); // month is 0-indexed
+    date.setMonth(date.getMonth() - 1);
+    
+    const prevYear = date.getFullYear();
+    const prevMonth = String(date.getMonth() + 1).padStart(2, '0');
+    
+    return `${prevYear}-${prevMonth}`;
 }
 
 function nextCategory() {
@@ -560,6 +654,12 @@ function exportToPDF() {
         return;
     }
     
+    // Check if jsPDF is loaded
+    if (typeof window.jspdf === 'undefined') {
+        alert('PDF library not loaded. Please refresh the page and try again.');
+        return;
+    }
+    
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const sessionData = appState.sessionData;
@@ -571,9 +671,10 @@ function exportToPDF() {
     doc.setFontSize(12);
     doc.text(`Manager: ${sessionData.managerName}`, 20, 45);
     doc.text(`Employee: ${sessionData.employeeName}`, 20, 55);
-    doc.text(`Date: ${new Date(sessionData.sessionDate).toLocaleDateString()}`, 20, 65);
+    doc.text(`Session Month: ${sessionData.sessionMonth || 'N/A'}`, 20, 65);
+    doc.text(`Date: ${new Date(sessionData.sessionDate).toLocaleDateString()}`, 20, 75);
     
-    let yPosition = 85;
+    let yPosition = 95;
     
     // Ratings summary
     doc.setFontSize(16);
@@ -640,8 +741,40 @@ function exportToPDF() {
         }
     });
     
+    // Add previous month comparison if available
+    if (sessionData.previousMonth && sessionData.previousMonth.employee && sessionData.previousMonth.manager) {
+        yPosition += 10;
+        doc.setFontSize(16);
+        doc.text('Previous Month Comparison', 20, yPosition);
+        yPosition += 15;
+        
+        doc.setFontSize(10);
+        appState.categories.forEach(category => {
+            const currentEmp = sessionData.employee.ratings[category.name];
+            const currentMgr = sessionData.manager.ratings[category.name];
+            const prevEmp = sessionData.previousMonth.employee.ratings[category.name];
+            const prevMgr = sessionData.previousMonth.manager.ratings[category.name];
+            
+            if (prevEmp && prevMgr) {
+                const empTrend = currentEmp - prevEmp;
+                const mgrTrend = currentMgr - prevMgr;
+                
+                doc.text(`${category.name}:`, 20, yPosition);
+                doc.text(`Employee: ${prevEmp} -> ${currentEmp} (${empTrend >= 0 ? '+' : ''}${empTrend})`, 25, yPosition + 8);
+                doc.text(`Manager: ${prevMgr} -> ${currentMgr} (${mgrTrend >= 0 ? '+' : ''}${mgrTrend})`, 25, yPosition + 16);
+                yPosition += 24;
+                
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+            }
+        });
+    }
+    
     // Save the PDF
-    const fileName = `catchup_${sessionData.employeeName}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const monthStr = sessionData.sessionMonth ? sessionData.sessionMonth.replace('-', '_') : new Date().toISOString().split('T')[0];
+    const fileName = `catchup_${sessionData.employeeName}_${monthStr}.pdf`;
     doc.save(fileName);
 }
 
