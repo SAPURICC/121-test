@@ -8,7 +8,7 @@
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- PDF Generation Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
@@ -87,31 +87,29 @@
                 <p id="categoryDescription"></p>
                 
                 <div class="reveal-container">
-                    <div class="employee-reveal" id="employeeReveal" style="display: none;">
-                        <h4>Employee Response</h4>
-                        <div class="rating-display">
-                            <div class="rating-circle employee-circle">
-                                <span id="employeeRatingValue"></span>
-                            </div>
-                        </div>
-                        <div class="comment-display" id="employeeCommentDisplay"></div>
-                        <button onclick="revealManager()" class="btn-primary">Reveal Manager Response</button>
+                    <!-- Reveal Buttons -->
+                    <div class="reveal-buttons" id="revealButtons">
+                        <button onclick="revealEmployee()" id="revealEmployeeBtn" class="btn-primary">Reveal Employee's Rating</button>
+                        <button onclick="revealManager()" id="revealManagerBtn" class="btn-primary" disabled>Reveal Manager's Rating</button>
                     </div>
 
-                    <div class="two-column-reveal" id="twoColumnReveal" style="display: none;">
-                        <div class="columns-container">
-                            <div class="column employee-column">
-                                <h4>Employee Response</h4>
+                    <!-- Side by Side Ratings Display -->
+                    <div class="side-by-side-container">
+                        <div class="rating-column employee-column">
+                            <h4>👤 Employee Response</h4>
+                            <div id="employeeContent" style="display: none;">
                                 <div class="rating-display">
                                     <div class="rating-circle employee-circle">
-                                        <span id="employeeRatingValue2"></span>
+                                        <span id="employeeRatingValue"></span>
                                     </div>
                                 </div>
-                                <div class="comment-display" id="employeeCommentDisplay2"></div>
+                                <div class="comment-display" id="employeeCommentDisplay"></div>
                             </div>
-                            
-                            <div class="column manager-column">
-                                <h4>Manager Response</h4>
+                        </div>
+                        
+                        <div class="rating-column manager-column">
+                            <h4>👔 Manager Response</h4>
+                            <div id="managerContent" style="display: none;">
                                 <div class="rating-display">
                                     <div class="rating-circle manager-circle">
                                         <span id="managerRatingValue"></span>
@@ -120,18 +118,15 @@
                                 <div class="comment-display" id="managerCommentDisplay"></div>
                             </div>
                         </div>
-                        
-                        <div class="comparison-display">
-                            <h5>Comparison</h5>
-                            <div class="rating-difference" id="ratingDifference"></div>
-                            <div id="previousMonthComparison" class="previous-month-comparison"></div>
-                        </div>
-                        
+                    </div>
+                    
+                    <div class="comparison-display" id="comparisonDisplay" style="display: none;">
+                        <h5>📊 Comparison</h5>
+                        <div class="rating-difference" id="ratingDifference"></div>
+                        <div id="previousMonthComparison" class="previous-month-comparison"></div>
                         <button onclick="nextCategory()" id="nextBtn" class="btn-secondary">Next Category</button>
                     </div>
                 </div>
-
-                <button onclick="revealEmployee()" id="startRevealBtn" class="btn-primary">Reveal Employee Response</button>
             </div>
         </div>
 

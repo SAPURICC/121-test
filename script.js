@@ -402,9 +402,11 @@ function updateSessionDisplay() {
     document.getElementById('categoryDescription').textContent = category.description;
     
     // Reset reveal states
-    document.getElementById('startRevealBtn').style.display = 'block';
-    document.getElementById('employeeReveal').style.display = 'none';
-    document.getElementById('managerReveal').style.display = 'none';
+    document.getElementById('revealEmployeeBtn').disabled = false;
+    document.getElementById('revealManagerBtn').disabled = true;
+    document.getElementById('employeeContent').style.display = 'none';
+    document.getElementById('managerContent').style.display = 'none';
+    document.getElementById('comparisonDisplay').style.display = 'none';
 }
 
 function revealEmployee() {
@@ -419,8 +421,10 @@ function revealEmployee() {
     document.getElementById('employeeRatingValue').textContent = rating ? ratingEmojis[rating] : '❓';
     document.getElementById('employeeCommentDisplay').textContent = comment || 'No comment provided';
     
-    document.getElementById('startRevealBtn').style.display = 'none';
-    document.getElementById('employeeReveal').style.display = 'block';
+    // Show employee content and enable manager button
+    document.getElementById('employeeContent').style.display = 'block';
+    document.getElementById('revealEmployeeBtn').disabled = true;
+    document.getElementById('revealManagerBtn').disabled = false;
 }
 
 function revealManager() {
@@ -435,16 +439,14 @@ function revealManager() {
     // Convert rating to emoji
     const ratingEmojis = ['', '😞', '😕', '😐', '😊', '😍'];
     
-    // Hide single employee reveal and show two-column layout
-    document.getElementById('employeeReveal').style.display = 'none';
-    document.getElementById('twoColumnReveal').style.display = 'block';
-    
-    // Populate both columns
-    document.getElementById('employeeRatingValue2').textContent = employeeRating ? ratingEmojis[employeeRating] : '❓';
-    document.getElementById('employeeCommentDisplay2').textContent = employeeData.comments[category.name] || 'No comment provided';
-    
+    // Show manager content
     document.getElementById('managerRatingValue').textContent = managerRating ? ratingEmojis[managerRating] : '❓';
     document.getElementById('managerCommentDisplay').textContent = managerComment || 'No comment provided';
+    document.getElementById('managerContent').style.display = 'block';
+    
+    // Disable manager button and show comparison
+    document.getElementById('revealManagerBtn').disabled = true;
+    document.getElementById('comparisonDisplay').style.display = 'block';
     
     // Show current month comparison
     const difference = Math.abs((managerRating || 0) - (employeeRating || 0));
@@ -654,13 +656,18 @@ function exportToPDF() {
         return;
     }
     
-    // Check if jsPDF is loaded
-    if (typeof window.jspdf === 'undefined') {
+    // Check if jsPDF is loaded - try multiple ways
+    let jsPDF;
+    if (window.jspdf && window.jspdf.jsPDF) {
+        jsPDF = window.jspdf.jsPDF;
+    } else if (window.jsPDF) {
+        jsPDF = window.jsPDF;
+    } else {
         alert('PDF library not loaded. Please refresh the page and try again.');
+        console.error('jsPDF not found. Available:', Object.keys(window).filter(k => k.toLowerCase().includes('pdf')));
         return;
     }
     
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const sessionData = appState.sessionData;
     
